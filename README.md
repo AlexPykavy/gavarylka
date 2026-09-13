@@ -9,3 +9,14 @@ This project is a simple chat system that utilizes various technologies to provi
 - **Redis**: For mapping user IDs to WebSocket connections.
 - **Kafka**: For message queuing and handling.
 - **PostgreSQL**: For persistent message storage.
+
+## Useful commands
+
+```
+make ws
+> {"id":"9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6a","author_id":"1","destination_user_id":"1","message":"Hello!"}
+```
+
+```
+make psql SQL="SELECT * FROM messages;"
+```

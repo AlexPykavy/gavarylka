@@ -1,0 +1,162 @@
+services:
+  websocket:
+    build:
+      context: .
+      args:
+        - PROJECT=websocket
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+      - jaeger
+    environment:
+      CHAT_SERVICE_URL: http://chat:8080
+      OTLP_ENDPOINT: jaeger:4317
+      REDIS_URL: redis:6379
+      WEBSOCKET_SERVER_URL: http://websocket:8080
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  message-router:
+    build:
+      context: .
+      args:
+        - PROJECT=message-router
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER: kafka:9092
+      OTLP_ENDPOINT: jaeger:4317
+      POSTGRES_DSN: postgres://user:password@postgres:5432/chat_db?sslmode=disable
+      REDIS_URL: redis:6379
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  chat:
+    build:
+      context: .
+      args:
+        - PROJECT=chat
+    ports:
+      - "8081:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER: kafka:9092
+      OTLP_ENDPOINT: jaeger:4317
+      POSTGRES_DSN: postgres://user:password@postgres:5432/chat_db?sslmode=disable
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  redis:
+    image: redis:alpine
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  kafka:
+    image: apache/kafka:4.0.1
+    environment:
+      # CRITICAL: Define the node roles (can be 'broker', 'controller', or 'broker,controller')
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_NODE_ID: 1
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+      
+      # Listeners configuration
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT'
+      
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+      # Required for KRaft cluster initialization
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      # test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+      test: ["CMD", "nc", "-z", "localhost", "9092"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  kafka-init:
+    image: apache/kafka:4.0.1
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      /opt/kafka/bin/kafka-topics.sh
+      --bootstrap-server kafka:9092
+      --create
+      --if-not-exists
+      --topic chat-messages
+      --partitions 3
+      --replication-factor 1
+
+  postgres:
+    image: postgres:alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: chat_db
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} -t -c \"SELECT 1 FROM information_schema.tables WHERE table_type='BASE TABLE' AND table_catalog='chat_db' AND table_schema='public' AND table_name='messages';\" | egrep ."]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+    ports:
+      - 5432:5432
+    volumes:
+      - ./db:/docker-entrypoint-initdb.d:ro
+      - postgres_data:/var/lib/postgresql
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.46
+    ports:
+      - "16686:16686"   # Jaeger UI
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+volumes:
+  kafka_data:
+  postgres_data:

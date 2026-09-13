@@ -1,0 +1,13 @@
+.git/
+.gitignore
+
+*.md
+
+bin/
+db/
+tmp/
+
+*.log
+
+docker-compose.yaml
+Dockerfile
