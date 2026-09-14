@@ -149,6 +149,11 @@ services:
 
   jaeger:
     image: jaegertracing/all-in-one:1.46
+    environment:
+      SPAN_STORAGE_TYPE: badger
+      BADGER_EPHEMERAL: false
+      BADGER_DIRECTORY_VALUE: /badger/data
+      BADGER_DIRECTORY_KEY: /badger/key
     ports:
       - "16686:16686"   # Jaeger UI
     deploy:
@@ -156,7 +161,10 @@ services:
         limits:
           cpus: '0.5'
           memory: 512M
+    volumes:
+      - jaeger_data:/badger
 
 volumes:
   kafka_data:
   postgres_data:
+  jaeger_data:
