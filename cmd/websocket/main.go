@@ -60,6 +60,8 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	skipHistory := r.URL.Query().Get("skip_history")
+
 	if err := h.redisClient.Set(ctx, userID, h.webSocketServerUrl, 0).Err(); err != nil {
 		h.logger.ErrorContext(ctx, "failed to register user in Redis", "error", err)
 		return
@@ -68,38 +70,40 @@ func (h *Handler) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.InfoContext(ctx, "user connected", "user_id", userID)
 
-	client := &http.Client{
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
-	}
+	if skipHistory != "true" {
+		client := &http.Client{
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+		}
 
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodGet,
-		h.chatServiceUrl+"/users/"+userID+"/messages",
-		nil,
-	)
-	if err != nil {
-		h.logger.ErrorContext(ctx, "failed to create request to chat service", "error", err, "user_id", userID)
-		return
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		h.logger.ErrorContext(ctx, "failed to send message to chat service", "error", err, "user_id", userID)
-		return
-	}
-	defer resp.Body.Close()
-
-	var msgs []Message
-	if err := json.NewDecoder(resp.Body).Decode(&msgs); err != nil {
-		h.logger.ErrorContext(ctx, "failed to decode messages from chat service", "error", err, "user_id", userID)
-		return
-	}
-
-	for _, msg := range msgs {
-		if err := conn.WriteJSON(msg); err != nil {
-			h.logger.ErrorContext(ctx, "failed to send message to user", "error", err, "user_id", userID)
+		req, err := http.NewRequestWithContext(
+			ctx,
+			http.MethodGet,
+			h.chatServiceUrl+"/users/"+userID+"/messages",
+			nil,
+		)
+		if err != nil {
+			h.logger.ErrorContext(ctx, "failed to create request to chat service", "error", err, "user_id", userID)
 			return
+		}
+
+		resp, err := client.Do(req)
+		if err != nil {
+			h.logger.ErrorContext(ctx, "failed to send message to chat service", "error", err, "user_id", userID)
+			return
+		}
+		defer resp.Body.Close()
+
+		var msgs []Message
+		if err := json.NewDecoder(resp.Body).Decode(&msgs); err != nil {
+			h.logger.ErrorContext(ctx, "failed to decode messages from chat service", "error", err, "user_id", userID)
+			return
+		}
+
+		for _, msg := range msgs {
+			if err := conn.WriteJSON(msg); err != nil {
+				h.logger.ErrorContext(ctx, "failed to send message to user", "error", err, "user_id", userID)
+				return
+			}
 		}
 	}
 
