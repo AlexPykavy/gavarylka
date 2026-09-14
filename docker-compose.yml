@@ -17,8 +17,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 512M
+          cpus: 3
+          memory: 1G
+        reservations:
+          cpus: 3
+          memory: 1G
 
   message-router:
     build:
@@ -28,6 +31,8 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     environment:
@@ -36,9 +41,13 @@ services:
       POSTGRES_DSN: postgres://user:password@postgres:5432/chat_db?sslmode=disable
       REDIS_URL: redis:6379
     deploy:
+      replicas: 5
       resources:
         limits:
-          cpus: '0.5'
+          cpus: 0.5
+          memory: 512M
+        reservations:
+          cpus: 0.5
           memory: 512M
 
   chat:
@@ -60,7 +69,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
+          cpus: 1
+          memory: 512M
+        reservations:
+          cpus: 1
           memory: 512M
 
   redis:
@@ -68,6 +80,9 @@ services:
     deploy:
       resources:
         limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
           cpus: '0.5'
           memory: 256M
 
@@ -96,8 +111,12 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 512M
+          cpus: 1
+          memory: 2G
+        reservations:
+          cpus: 1
+          memory: 2G
+
     healthcheck:
       # test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
       test: ["CMD", "nc", "-z", "localhost", "9092"]
@@ -116,13 +135,13 @@ services:
     restart: "no"
     entrypoint: ["/bin/sh", "-c"]
     command: >
-      /opt/kafka/bin/kafka-topics.sh
+      "/opt/kafka/bin/kafka-topics.sh
       --bootstrap-server kafka:9092
       --create
       --if-not-exists
       --topic chat-messages
-      --partitions 3
-      --replication-factor 1
+      --partitions 10
+      --replication-factor 1"
 
   postgres:
     image: postgres:alpine
@@ -133,8 +152,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 512M
+          cpus: 1
+          memory: 1G
+        reservations:
+          cpus: 1
+          memory: 1G
     healthcheck:
       test: ["CMD-SHELL", "psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} -t -c \"SELECT 1 FROM information_schema.tables WHERE table_type='BASE TABLE' AND table_catalog='chat_db' AND table_schema='public' AND table_name='messages';\" | egrep ."]
       interval: 10s
@@ -159,8 +181,11 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: 512M
+          cpus: 1
+          memory: 1G
+        reservations:
+          cpus: 1
+          memory: 1G
     volumes:
       - jaeger_data:/badger
 
