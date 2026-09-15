@@ -1,0 +1,6 @@
+---
+- name: Tools
+  ansible.builtin.import_playbook: tools.yml
+
+- name: Docker
+  ansible.builtin.import_playbook: docker.yml

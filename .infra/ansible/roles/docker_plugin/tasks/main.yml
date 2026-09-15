@@ -1,0 +1,15 @@
+---
+- name: Ensure global Docker CLI plugins directory exists
+  ansible.builtin.file:
+    path: /usr/libexec/docker/cli-plugins
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Dynamically resolve and install target Docker plugins
+  ansible.builtin.include_tasks:
+    file: install_plugin.yml
+  loop: "{{ docker_target_plugins }}"
+  loop_control:
+    loop_var: current_plugin

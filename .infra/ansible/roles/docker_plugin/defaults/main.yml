@@ -1,0 +1,18 @@
+---
+docker_target_plugins:
+  - buildx
+  - compose
+
+docker_plugins_registry:
+  buildx:
+    repo: "docker/buildx"
+    fallback_version: "v0.18.0"
+    # Using safe string replacements instead of Jinja tags
+    asset_template: "buildx-__VERSION__.linux-__ARCH__"
+    arch_mapping:
+      x86_64: "amd64"
+      aarch64: "arm64"
+  compose:
+    repo: "docker/compose"
+    fallback_version: "v5.51.0"
+    asset_template: "docker-compose-linux-__ARCH__"

@@ -1,0 +1,30 @@
+---
+- name: Install Tools
+  hosts: all
+  become: true
+  tasks:
+    - name: Download and install the k6 RPM repository configuration
+      ansible.builtin.dnf:
+        name: https://dl.k6.io/rpm/repo.rpm
+        state: present
+        disable_gpg_check: yes
+
+    - name: Ensure packages are installed
+      ansible.builtin.dnf:
+        name:
+          - git
+          - htop
+          - k6
+          - make
+          - nodejs
+          - npm
+        state: present
+        update_cache: yes
+
+    - name: Install NPM packages
+      community.general.npm:
+        name: "{{ item }}"
+        global: true
+        state: present
+      loop:
+        - wscat

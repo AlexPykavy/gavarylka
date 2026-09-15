@@ -1,0 +1,30 @@
+---
+- name: "Extract plugin definition from registry for: {{ current_plugin }}"
+  ansible.builtin.set_fact:
+    plugin_meta: "{{ docker_plugins_registry[current_plugin] }}"
+
+- name: "Fetch the latest stable {{ current_plugin }} version tag from GitHub API"
+  ansible.builtin.uri:
+    url: "https://api.github.com/repos/{{ plugin_meta.repo }}/releases/latest"
+    return_content: true
+  register: github_release
+  delegate_to: localhost
+  become: false
+  ignore_errors: true
+
+- name: "Set version fact for {{ current_plugin }}"
+  ansible.builtin.set_fact:
+    resolved_version: "{{ (github_release.content | from_json).tag_name if (github_release.status == 200) else plugin_meta.fallback_version }}"
+
+- name: "Download and install Docker {{ current_plugin }} plugin binary"
+  vars:
+    version: "{{ resolved_version }}"
+    target_arch: "{{ plugin_meta.arch_mapping[ansible_architecture] if (plugin_meta.arch_mapping is defined) else ansible_architecture }}"
+    # Use chain replacement filters to map placeholders cleanly
+    resolved_asset: "{{ plugin_meta.asset_template | replace('__VERSION__', resolved_version) | replace('__ARCH__', target_arch) }}"
+  ansible.builtin.get_url:
+    url: "https://github.com/{{ plugin_meta.repo }}/releases/download/{{ resolved_version }}/{{ resolved_asset }}"
+    dest: "/usr/libexec/docker/cli-plugins/docker-{{ current_plugin }}"
+    owner: root
+    group: root
+    mode: '0755'

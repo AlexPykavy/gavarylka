@@ -1,0 +1,26 @@
+---
+- name: Install and Configure Docker
+  hosts: all
+  become: true
+  tasks:
+    - name: Ensure Docker package is installed
+      ansible.builtin.dnf:
+        name: docker
+        state: present
+        update_cache: yes
+
+    - name: Install Docker plugins
+      ansible.builtin.include_role:
+        name: docker_plugin
+
+    - name: Start and enable Docker service
+      ansible.builtin.systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Add system user to docker group
+      ansible.builtin.user:
+        name: "{{ ansible_user | default('ec2-user') }}"
+        groups: docker
+        append: yes

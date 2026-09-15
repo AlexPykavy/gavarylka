@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# Everything from this script goes into one troubleshooting log.
+exec > >(tee -a /var/log/bootstrap.log | logger -t user-data -s 2>/dev/console) 2>&1
+
+set -euxo pipefail
+
+echo "===== Bootstrap started: $(date -Is) ====="
+
+# ------------------------------------------------------------
+# Install dependencies
+# ------------------------------------------------------------
+
+dnf install -y \
+  awscli \
+  ansible
+
+# ------------------------------------------------------------
+# Prepare working directory
+# ------------------------------------------------------------
+
+mkdir -p /opt/ansible
+
+# ------------------------------------------------------------
+# Download all playbooks
+# ------------------------------------------------------------
+
+aws s3 sync \
+  "s3://${bucket}/playbooks/" \
+  /opt/ansible/
+
+echo "Downloaded playbooks:"
+find /opt/ansible -type f -print
+
+# ------------------------------------------------------------
+# Run Ansible
+# ------------------------------------------------------------
+
+cd /opt/ansible
+
+ansible-playbook local.yml -i "localhost," -c local
+
+echo "===== Bootstrap completed: $(date -Is) ====="
